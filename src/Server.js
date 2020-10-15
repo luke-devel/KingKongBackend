@@ -9,15 +9,12 @@ app.listen(port, process.env.HOST, () => {
   console.log(`KingKong Express Backend Listening at: http://${process.env.HOST}:${port}`);
 });
 
-// for first DB wipe
-app.get("/wipedb", (req, res) => {
-  // db.sequelize.sync({ force: true }).then(function () {
-  //   console.log(`done`);
-  // });
+app.get("/", (req, res) => {
+    res.json("Hello World");
 });
 
 // Registers user into MySql
-app.post("/registeruser", async (req, res) => {
+app.post("/api/registeruser", async (req, res) => {
   // let user;
   // console.log(req.headers.password);
   // res.send("hello");
@@ -39,3 +36,62 @@ app.post("/registeruser", async (req, res) => {
     res.end();
   }
 });
+
+
+app.get("/api/login", async (req, res)=>{
+  switch (req.method) {
+    case "POST":
+      let user;
+      try {
+        try {
+          user = await db.user.findOne({
+            where: {
+              email: req.body.userinput,
+            },
+          });
+          if (!user) {
+            throw err;
+          }
+        } catch (e) {
+          user = await db.user.findOne({
+            where: {
+              username: req.body.userinput,
+            },
+          });
+          if (!user) {
+            throw err;
+          }
+        }
+      } catch (e) {
+        console.log("caught correct");
+        console.log(e);
+        res.end("invalid username or email");
+      }
+
+      if (user) {
+        const result = await bcrypt.compare(req.body.password, user.password);
+        if (result) {
+          // if password is correct
+          const token = jwt.sign(
+            { id: user.id, username: user.username, email: user.email },
+            process.env.secretKey
+          );
+          res.status(201);
+          res.json({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            token,
+          });
+        } else {
+          console.log("invalid password");
+          res.end("invalid password");
+        }
+      }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+})
