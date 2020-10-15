@@ -8,7 +8,7 @@ module.exports = (sequelize, Sequelize) => {
         },
         fullname: {
             type: Sequelize.STRING,
-            unique: true
+            unique: false
         },
         email: {
             type: Sequelize.STRING,
@@ -20,6 +20,14 @@ module.exports = (sequelize, Sequelize) => {
         phone: {
             type: Sequelize.STRING,
             unique: true
+        },
+        memberStatus: {
+            type: Sequelize.STRING,
+            defaultValue: 'false'
+        },
+        adminStatus: {
+            type: Sequelize.STRING,
+            defaultValue: 'false'
         },
         created: {
             type: Sequelize.DATE,

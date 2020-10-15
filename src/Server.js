@@ -9,11 +9,14 @@ app.listen(port, process.env.HOST, () => {
   console.log(`KingKong Express Backend Listening at: http://${process.env.HOST}:${port}`);
 });
 
-app.get("/", (req, res) => {
-  res.json("hello world");
+// for first DB wipe
+app.get("/wipedb", (req, res) => {
+  // db.sequelize.sync({ force: true }).then(function () {
+  //   console.log(`done`);
+  // });
 });
 
-// Registers user into MySql Database
+// Registers user into MySql
 app.post("/registeruser", async (req, res) => {
   // let user;
   // console.log(req.headers.password);
