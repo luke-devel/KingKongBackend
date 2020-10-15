@@ -6,7 +6,6 @@ const user = require("./User");
 
 const Sequelize = require("sequelize");
 
-console.log(process.env.DB_NAME);
 let sequelize = new Sequelize(
     process.env.DB_NAME,
     process.env.DB_USERNAME,
@@ -14,7 +13,6 @@ let sequelize = new Sequelize(
     {
         host: process.env.DB_HOST,
         dialect: "mysql",
-        operatorsAliases: false,
     }
 );
 
