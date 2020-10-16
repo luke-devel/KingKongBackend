@@ -4,7 +4,8 @@
   "description": "",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "express": "nodemon -r dotenv/config --exec babel-node src/Server.js"
+    "dev": "nodemon -r dotenv/config --exec babel-node src/Server.js",
+    "build": "nodemon -r dotenv/config --exec babel-node src/Server.js"
   },
   "author": "Luke Olson - luke.olson499@gmail.com",
   "license": "ISC",
