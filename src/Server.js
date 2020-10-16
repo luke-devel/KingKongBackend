@@ -6,11 +6,14 @@ const port = process.env.PORT;
 const app = express();
 
 app.listen(port, process.env.HOST, () => {
-  console.log(`KingKong Express Backend Listening at: http://${process.env.HOST}:${port}`);
+  console.log(
+    `KingKong Express Backend Listening at: http://${process.env.HOST}:${port}`
+  );
 });
 
 app.get("/", (req, res) => {
-    res.json("Hello World");
+  res.json("Hello World");
+  res.end();
 });
 
 // Registers user into MySql
@@ -20,25 +23,32 @@ app.post("/api/registeruser", async (req, res) => {
   // res.send("hello");
   try {
     // adding new user to database, if there is an error we will return false
-    await db.user.create({
-      fullname: req.headers.fullname,
-      email: req.headers.email,
-      password: req.headers.password,
-      phone: req.headers.phone,
-    });
+    let dbRes;
+    try {
+      dbRes = await db.user.create({
+        fullname: req.headers.fullname,
+        email: req.headers.email,
+        password: req.headers.password,
+        phone: req.headers.phone,
+      });
+    } catch (seqErr) {
+      console.log(seqErr.original.errno);
+      ("Duplicate Email or Phone num found, sending 409 res.status(409)");
+      seqErr.original.errno === 1062 && res.status(409);
+      res.end();
+    }
     // Status is returned if row was added into database with no error.
     res.status(253);
     res.end();
-  } catch (error) {
+  } catch (error) {1
+    console.log(error.original.code);
     // Error adding row into database, or error with request data.
-    console.log("err in src/Server.js: sequelize,", error);
-    res.status(400);
+    console.log();
     res.end();
   }
 });
 
-
-app.get("/api/login", async (req, res)=>{
+app.get("/api/login", async (req, res) => {
   switch (req.method) {
     case "POST":
       let user;
@@ -94,4 +104,4 @@ app.get("/api/login", async (req, res)=>{
       res.end("you need to post");
       break;
   }
-})
+});
