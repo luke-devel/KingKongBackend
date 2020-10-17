@@ -12,6 +12,11 @@ app.listen(port, process.env.HOST, () => {
 });
 
 app.get("/", (req, res) => {
+  res.json("Hi");
+
+  db.sequelize.sync({ force: true }).then(function () {
+    console.log(`done`);
+  });
   res.json("Hello World");
   res.end();
 });
