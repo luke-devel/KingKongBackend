@@ -24,16 +24,15 @@ app.post("/api/registeruser", async (req, res) => {
   //  !req.headers.fullname && res.json("missing reqs") && res.end();
   res.status(401);
    res.end();;
+   if(req.headers.email && req.headers.password){
   try {
     // adding new user to database, if there is an error we will return false
     let dbRes;
     try {
-
       dbRes = await db.user.create({
         fullname: req.headers.fullname,
         email: req.headers.email,
         password: req.headers.password,
-        phone: req.headers.phone,
       });
     } catch (seqErr) {
       console.log(seqErr.original.errno);
@@ -50,6 +49,7 @@ app.post("/api/registeruser", async (req, res) => {
     console.log();
     res.end();
   }
+}
 });
 
 app.get("/api/login", async (req, res) => {
