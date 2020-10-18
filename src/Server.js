@@ -21,9 +21,7 @@ app.post("/api/registeruser", async (req, res) => {
   // let user;
   // console.log(req.headers.password);
   // res.send("hello");
-   !req.headers.fullname && res.json("missing reqs");
-   res.end
-
+   !req.headers.fullname && res.json("missing reqs") && res.end();
   try {
     // adding new user to database, if there is an error we will return false
     let dbRes;
