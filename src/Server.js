@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
 // Registers user into MySql
 app.post("/api/registeruser", async (req, res) => {
   // let user;
-  console.log('req.headers.password)';
+  console.log('req.headers.password)');
   // res.send("hello");
   //  !req.headers.fullname && res.json("missing reqs") && res.end();
    res.end();;
