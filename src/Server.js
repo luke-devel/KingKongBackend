@@ -22,11 +22,12 @@ app.post("/api/registeruser", async (req, res) => {
   console.log("req.headers.password)");
   // res.send("hello");
 
-  !req.headers.fullname &&
-    res.json("missing reqs") &&
-    res.status(401) &&
-    res.end();
-  if (req.headers.email && req.headers.password) {
+  !req.headers.fullname ||
+    !req.headers.email ||
+    (!req.headers.password &&
+      res.json("missing reqs") &&
+      res.status(401) &&
+      res.end());
     try {
       // adding new user to database, if there is an error we will return false
       let dbRes;
@@ -52,7 +53,6 @@ app.post("/api/registeruser", async (req, res) => {
       console.log();
       res.end();
     }
-  }
 });
 
 app.get("/api/login", async (req, res) => {
