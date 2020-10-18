@@ -19,37 +19,40 @@ app.get("/", (req, res) => {
 // Registers user into MySql
 app.post("/api/registeruser", async (req, res) => {
   // let user;
-  console.log('req.headers.password)');
+  console.log("req.headers.password)");
   // res.send("hello");
-  //  !req.headers.fullname && res.json("missing reqs") && res.end();
-  res.status(401);
-   res.end();;
-   if(req.headers.email && req.headers.password){
-  try {
-    // adding new user to database, if there is an error we will return false
-    let dbRes;
+
+  !req.headers.fullname &&
+    res.json("missing reqs") &&
+    res.status(401) &&
+    res.end();
+  if (req.headers.email && req.headers.password) {
     try {
-      dbRes = await db.user.create({
-        fullname: req.headers.fullname,
-        email: req.headers.email,
-        password: req.headers.password,
-      });
-    } catch (seqErr) {
-      console.log(seqErr.original.errno);
-      ("Duplicate Email or Phone num found, sending 409 res.status(409)");
-      seqErr.original.errno === 1062 && res.status(409);
+      // adding new user to database, if there is an error we will return false
+      let dbRes;
+      try {
+        dbRes = await db.user.create({
+          fullname: req.headers.fullname,
+          email: req.headers.email,
+          password: req.headers.password,
+        });
+      } catch (seqErr) {
+        console.log(seqErr.original.errno);
+        ("Duplicate Email or Phone num found, sending 409 res.status(409)");
+        seqErr.original.errno === 1062 && res.status(409);
+        res.end();
+      }
+      // Status is returned if row was added into database with no error.
+      res.status(253);
+      res.end();
+    } catch (error) {
+      1;
+      console.log(error.original.code);
+      // Error adding row into database, or error with request data.
+      console.log();
       res.end();
     }
-    // Status is returned if row was added into database with no error.
-    res.status(253);
-    res.end();
-  } catch (error) {1
-    console.log(error.original.code);
-    // Error adding row into database, or error with request data.
-    console.log();
-    res.end();
   }
-}
 });
 
 app.get("/api/login", async (req, res) => {
