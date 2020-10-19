@@ -20,8 +20,6 @@ app.get("/", (req, res) => {
 app.post("/api/registeruser", async (req, res) => {
   // let user;
   console.log("req.headers.password)");
-  // res.send("hello");
-
   !req.headers.fullname ||
     !req.headers.email ||
     (!req.headers.password &&
