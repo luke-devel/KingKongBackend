@@ -29,9 +29,9 @@ app.post("/api/registeruser", async (req, res) => {
       res.end());
   try {
     // adding new user to database, if there is an error we will return false
-    let dbRes;
+    let user;
     try {
-      dbRes = await db.user.create({
+      user = await db.user.create({
         fullname: req.headers.fullname,
         email: req.headers.email,
         password: req.headers.password,
@@ -43,11 +43,13 @@ app.post("/api/registeruser", async (req, res) => {
       res.end();
     }
     // Status is returned if row was added into database with no error.
-    res.status(253);
-    res.end();
+    const token = jwt.sign(
+      { id: user.dataValues.id, email: user.dataValues.email, loggedIn: 'true' },
+      process.env.JWT_PRIVATE_KEY
+    );
+    res.status(253).json({token}).end();
   } catch (error) {
-    1;
-    console.log(error.original.code);
+    console.log('error in register ()');
     // Error adding row into database, or error with request data.
     console.log();
     res.end();
