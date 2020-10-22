@@ -28,6 +28,32 @@ app.get("/", (req, res) => {
   res.end();
 });
 
+// gets users json ftp server data
+app.get("/api/query/:id*", async(req, res) => {
+  // console.log('here we go.', req.params['id']);
+  // console.log(req);
+  try {
+    const data = await sequelize.query(
+      `SELECT distinct ftpservers
+      FROM kingkong.userdata
+      WHERE userid = ${req.params['id']}
+      LIMIT 1`,
+      {
+        raw: true,
+        type: QueryTypes.SELECT,
+      }
+    );
+    let jsonObj = JSON.parse(data[0].ftpservers);
+    console.log(jsonObj);
+    res.status(253).json(JSON.stringify(jsonObj))
+  } catch (error) {
+    console.log('error ', error);
+      res.status(401).end();
+  }
+  res.json("Hello from aws World");
+  res.end();
+});
+
 // Registers user into MySql
 app.post("/api/registeruser", async (req, res) => {
   // let user;
