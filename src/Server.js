@@ -4,9 +4,14 @@ import db from "../models";
 import jwt from "jsonwebtoken";
 import jwt_decode from "jwt-decode";
 import { QueryTypes, Sequelize } from "sequelize";
+import bodyParser from "body-parser";
 
 const port = process.env.PORT;
 const app = express();
+
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+
 let sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USERNAME,
@@ -29,14 +34,14 @@ app.get("/", (req, res) => {
 });
 
 // gets users json ftp server data
-app.get("/api/query/:id*", async(req, res) => {
+app.get("/api/query/:id*", async (req, res) => {
   // console.log('here we go.', req.params['id']);
   // console.log(req);
   try {
     const data = await sequelize.query(
       `SELECT distinct ftpservers
       FROM kingkong.userdata
-      WHERE userid = ${req.params['id']}
+      WHERE userid = ${req.params["id"]}
       LIMIT 1`,
       {
         raw: true,
@@ -45,13 +50,11 @@ app.get("/api/query/:id*", async(req, res) => {
     );
     let jsonObj = JSON.parse(data[0].ftpservers);
     console.log(jsonObj);
-    res.status(253).json(JSON.stringify(jsonObj))
+    res.status(253).json(JSON.stringify(jsonObj));
   } catch (error) {
-    console.log('error ', error);
-      res.status(401).end();
+    console.log("error ", error);
+    res.status(401).end();
   }
-  res.json("Hello from aws World");
-  res.end();
 });
 
 // Registers user into MySql
@@ -66,31 +69,33 @@ app.post("/api/registeruser", async (req, res) => {
       res.end());
   try {
     // adding new user to database, if there is an error we will return false
-    let user;
     try {
-      user = await db.user.create({
+      const user = await db.user.create({
         fullname: req.headers.fullname,
         email: req.headers.email,
         password: req.headers.password,
       });
+      const token = await jwt.sign(
+        {
+          id: user.dataValues.id,
+          email: user.dataValues.email,
+          loggedIn: "true",
+        },
+        process.env.JWT_PRIVATE_KEY
+      );
+      // Status is returned if row was added into database with no error.
+      console.log('HI');
+      res.status(253).json({ token }).end();
     } catch (seqErr) {
       console.log(seqErr.original.errno);
       ("Duplicate Email or Phone num found, sending 409 res.status(409)");
-      seqErr.original.errno === 1062 && res.status(409);
-      res.end();
+      if (seqErr.original.errno) {
+        console.log("yo");
+        seqErr.original.errno === 1062 && res.status(409).end();
+      }
     }
-    // Status is returned if row was added into database with no error.
-    const token = jwt.sign(
-      {
-        id: user.dataValues.id,
-        email: user.dataValues.email,
-        loggedIn: "true",
-      },
-      process.env.JWT_PRIVATE_KEY
-    );
-    res.status(253).json({ token }).end();
   } catch (error) {
-    console.log("error in register ()");
+    console.log("error in registeruser ()", error);
     // Error adding row into database, or error with request data.
     console.log();
     res.end();
@@ -148,91 +153,63 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/addsite", async (req, res) => {
-  if (
-    !req.headers.serveraddress ||
-    !req.headers.serverport ||
-    !req.headers.serverusername ||
-    !req.headers.serverpassword ||
-    !req.headers.serverdescription
-  ) {
-    res.status(401).json("bad request");
-  }
-
-  console.log("hi");
-  // console.log(req.heSaders);
-
+  console.log(req.headers);
   switch (req.method) {
     case "POST":
-      const decodedToken = jwt_decode(req.headers.token);
-      // this is the id in the db
-      // we need to create or  update row in
-      // users db with json.stringified ftp server info.
-      console.log(decodedToken.id);
-      await db.userdata
-        .findOne({ where: { userid: decodedToken.id } })
-        .then(async (found) => {
-          if (found == null) {
-            console.log(
-              "User ID doesnt exist in the userdata table. adding now."
-            );
-            await db.userdata.create({
-              userid: decodedToken.id,
-              ftpservers: JSON.stringify([
-                {
-                  serverdescription: req.headers.serverdescription,
-                  serveraddress: req.headers.serveraddress,
-                  serverport: req.headers.serverport,
-                  serverusername: req.headers.serverusername,
-                  serverpassword: req.headers.serverpassword,
-                },
-              ]),
-            });
-            console.log(
-              `FTP server object written to db for user: ${decodedToken.id}`
-            );
-            res.status(250);
-          } else {
-            console.log(
-              `userdata row found for user ${decodedToken.id}, updating row now.`
-            );
-            res.status(201);
-            // were here if they exist. we need to get their json and append to it if unique
-            const data = await sequelize.query(
-              `SELECT distinct ftpservers
-              FROM kingkong.userdata
-              WHERE userid = ${decodedToken.id}
-              LIMIT 1`,
-              {
-                raw: true,
-                type: QueryTypes.SELECT,
-              }
-            );
-            let jsonObj = JSON.parse(data[0].ftpservers);
-            jsonObj.push({
-              serverdescription: req.headers.serverdescription,
-              serveraddress: req.headers.serveraddress,
-              serverport: req.headers.serverport,
-              serverusername: req.headers.serverusername,
-              serverpassword: req.headers.serverpassword,
-            });
+      if (
+        !req.headers.serveraddress ||
+        !req.headers.serverport ||
+        !req.headers.serverusername ||
+        !req.headers.serverpassword ||
+        !req.headers.serverdescription ||
+        !req.headers.token
+      ) {
+        return res.status(401).end("bad req");
+      }
 
-            await db.userdata
-              .update(
-                {
-                  ftpservers: JSON.stringify(jsonObj),
-                },
-                {
-                  returning: true,
-                  where: { userid: decodedToken.id },
-                  plain: true,
-                }
-              )
-              .catch((err) =>
-                console.log("err in removing existing userdata row")
-              );
-          }
+      const decodedToken = jwt_decode(req.headers.token);
+      console.log(decodedToken);
+      const userInfo = await db.userdata.findOne({
+        where: { userid: decodedToken.id },
+      });
+      const doesUserExist = !userInfo.isNewRecord;
+      if (doesUserExist) {
+        var serverList = JSON.parse(userInfo.dataValues.ftpservers);
+        console.log(serverList.length);
+        serverList.push({
+          serverdescription: req.headers.serverdescription,
+          serveraddress: req.headers.serveraddress,
+          serverport: req.headers.serverport,
+          serverusername: req.headers.serverusername,
+          serverpassword: req.headers.serverpassword,
         });
-      res.status(253).end();
+        //* JSON obj is now +1
+        console.log(serverList.length);
+        try {
+          const updateLog = await db.userdata.update(
+            {
+              ftpservers: JSON.stringify(serverList),
+            },
+            {
+              returning: true,
+              where: { userid: decodedToken.id },
+              plain: true,
+            }
+          );
+          console.log(updateLog);
+          return res.status(253).end();
+        } catch (error) {
+          const { errno } = error;
+          console.log("Update error: ", error);
+          if (error.errno === 1292) {
+            console.log("Incorrect id");
+          }
+        }
+        //* Updating existing users db
+        res.end("user exists");
+      } else {
+        res.end("user doesnt exist");
+      }
       break;
 
     default:
