@@ -4,13 +4,12 @@ import db from "../models";
 import jwt from "jsonwebtoken";
 import jwt_decode from "jwt-decode";
 import { QueryTypes, Sequelize } from "sequelize";
-import bodyParser from "body-parser";
+import bb from "express-busboy";
 
 const port = process.env.PORT;
 const app = express();
 
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+bb.extend(app);
 
 let sequelize = new Sequelize(
   process.env.DB_NAME,
@@ -36,24 +35,32 @@ app.get("/", (req, res) => {
 // gets users json ftp server data
 app.get("/api/query/:id*", async (req, res) => {
   // console.log('here we go.', req.params['id']);
-  // console.log(req);
-  try {
-    const data = await sequelize.query(
-      `SELECT distinct ftpservers
-      FROM kingkong.userdata
-      WHERE userid = ${req.params["id"]}
-      LIMIT 1`,
-      {
-        raw: true,
-        type: QueryTypes.SELECT,
+  if (!req.body) {
+    return res.status(404).json("Opps! Something went wrong.").end();
+  } else {
+    const decodedToken = jwt_decode(req.body.userToken);
+    try {
+      const userInfo = await db.user.findOne({
+        where: { email: decodedToken.myPersonEmail },
+      });
+      if (userInfo && userInfo.id === decodedToken.sub) {
+        // Authenticated request
+        try {
+          const userDataInfo = await db.userdata.findOne({
+            where: { userid: decodedToken.sub },
+          });
+          // Todo: add row id into this jsonObj
+          res
+            .status(253)
+            .json({ rowId: userDataInfo.id, data: userDataInfo.ftpservers });
+        } catch (error) {
+          console.log("error, ftptables doesnt exist for user");
+          res.status(401).end();
+        }
       }
-    );
-    let jsonObj = JSON.parse(data[0].ftpservers);
-    console.log(jsonObj);
-    res.status(253).json(JSON.stringify(jsonObj));
-  } catch (error) {
-    console.log("error ", error);
-    res.status(401).end();
+    } catch (seqFindErr) {
+      return res.status(404).json("Opps! Something went wrong.").end();
+    }
   }
 });
 
@@ -75,17 +82,14 @@ app.post("/api/registeruser", async (req, res) => {
         email: req.headers.email,
         password: req.headers.password,
       });
-      const token = await jwt.sign(
-        {
-          id: user.dataValues.id,
-          email: user.dataValues.email,
-          loggedIn: "true",
-        },
-        process.env.JWT_PRIVATE_KEY
-      );
-      // Status is returned if row was added into database with no error.
-      console.log('HI');
-      res.status(253).json({ token }).end();
+      if (user) {
+        const claims = { sub: user.id, myPersonEmail: user.email };
+        const token = jwt.sign(claims, process.env.JWT_PRIVATE_KEY, {
+          expiresIn: "1hr",
+        });
+        // Status is returned if row was added into database with no error.
+        return res.json({ authToken: token });
+      }
     } catch (seqErr) {
       console.log(seqErr.original.errno);
       ("Duplicate Email or Phone num found, sending 409 res.status(409)");
@@ -103,51 +107,39 @@ app.post("/api/registeruser", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
+  console.log("here at leastr");
   switch (req.method) {
     case "POST":
-      let user;
       try {
-        user = await db.user.findOne({
+        if (!req.body.email || !req.body.password) {
+          return res.status(404).json("Opps! Something went wrong.").end();
+        }
+        const user = await db.user.findOne({
           where: {
-            email: req.headers.email,
+            email: req.body.email,
           },
         });
-        if (!user) {
-          res.status(404).json("no email found!").end();
-        }
-      } catch (e) {
-        console.log("no email found");
-        res.status(404).json("no email found!").end();
-      }
-
-      if (user) {
-        const result = await bcrypt.compare(
-          req.headers.password,
-          user.password
-        );
-        if (result) {
-          // if password is correct
-          const token = jwt.sign(
-            { id: user.id, email: user.email, loggedIn: "true" },
-            process.env.JWT_PRIVATE_KEY
-          );
-          res
-            .status(253)
-            .json({
-              id: user.id,
-              email: user.email,
-              token,
-            })
-            .end();
+        if (user) {
+          const result = await bcrypt.compare(req.body.password, user.password);
+          if (result === true) {
+            const claims = { sub: user.id, myPersonEmail: user.email };
+            const token = jwt.sign(claims, process.env.JWT_PRIVATE_KEY, {
+              expiresIn: "1hr",
+            });
+            return res.json({ authToken: token });
+          } else {
+            res.json({ message: "Opps! Something went wrong." });
+          }
         } else {
-          console.log("invalid password");
-          res.status(405).end("invalid password");
+          res.status(404).json("Opps! Something went wrong.").end();
         }
+        1;
+      } catch (e) {
+        res.status(404).json("Opps! Something went wrong.").end();
       }
       break;
-
     default:
-      res.end("you need to post");
+      res.end("You need to post.");
       break;
   }
 });
@@ -166,14 +158,14 @@ app.post("/api/addsite", async (req, res) => {
       ) {
         return res.status(401).end("bad req");
       }
-
+      console.log(req.headers.token);
       const decodedToken = jwt_decode(req.headers.token);
       console.log(decodedToken);
       const userInfo = await db.userdata.findOne({
-        where: { userid: decodedToken.id },
+        where: { userid: decodedToken.sub },
       });
-      const doesUserExist = !userInfo.isNewRecord;
-      if (doesUserExist) {
+      if (userInfo) {
+        // user exists
         var serverList = JSON.parse(userInfo.dataValues.ftpservers);
         console.log(serverList.length);
         serverList.push({
@@ -192,23 +184,75 @@ app.post("/api/addsite", async (req, res) => {
             },
             {
               returning: true,
-              where: { userid: decodedToken.id },
+              where: { userid: decodedToken.sub },
               plain: true,
             }
           );
           console.log(updateLog);
-          return res.status(253).end();
+          res.json({ message: "Success" });
         } catch (error) {
-          const { errno } = error;
-          console.log("Update error: ", error);
-          if (error.errno === 1292) {
-            console.log("Incorrect id");
-          }
+          console.log("Update error in /api/addsite update: ", error);
+          res.json({ message: "Opps! Something went wrong" });
         }
-        //* Updating existing users db
-        res.end("user exists");
       } else {
-        res.end("user doesnt exist");
+        try {
+          const createLog = await db.userdata.create(
+            {
+              userid: decodedToken.sub,
+              ftpservers: JSON.stringify([
+                {
+                  serverdescription: req.headers.serverdescription,
+                  serveraddress: req.headers.serveraddress,
+                  serverport: req.headers.serverport,
+                  serverusername: req.headers.serverusername,
+                  serverpassword: req.headers.serverpassword,
+                },
+              ]),
+            },
+            {
+              returning: true,
+              where: { userid: decodedToken.id },
+              plain: true,
+            }
+          );
+        } catch (error) {
+          console.log("Update error in /api/addsite create: ");
+          res.json({ message: "Opps! Something went wrong" });
+        }
+      }
+      // const doesUserExist = !userInfo.isNewRecord;
+      // if (doesUserExist) {
+
+      // } else {
+      //   res.end("user doesnt exist");
+      // }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+});
+
+app.post("/api/checkauth", async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      if (!req.body) {
+        return res.status(404).json("Opps! Something went wrong.").end();
+      } else {
+        const decodedToken = jwt_decode(req.body.userToken);
+        try {
+          const userInfo = await db.user.findOne({
+            where: { email: decodedToken.myPersonEmail },
+          });
+          if (userInfo && userInfo.id === decodedToken.sub) {
+            // Authenticated request
+            return res.json({ message: "Authenticated" });
+            res.end();
+          }
+        } catch (seqFindErr) {
+          return res.status(404).json("Opps! Something went wrong.").end();
+        }
       }
       break;
 
@@ -217,3 +261,33 @@ app.post("/api/addsite", async (req, res) => {
       break;
   }
 });
+
+// app.post("/api/auth-bootstrap", async (req, res) => {
+//   switch (req.method) {
+//     case "POST":
+//       if (!req.body) {
+//         return res.status(404).json("Opps! Something went wrong.").end();
+//       } else {
+//         const decodedToken = jwt_decode(req.body.userToken);
+//         console.log(decodedToken);
+//         try {
+//           const userInfo = await db.user.findOne({
+//             where: { email: decodedToken.myPersonEmail },
+//           });
+//           console.log(userInfo);
+//           if (userInfo && userInfo.id === decodedToken.sub) {
+//             // Authenticated request
+//             console.log('Authenticated request');
+//             res.end()
+//           }
+//         } catch (seqFindErr) {
+//           return res.status(404).json("Opps! Something went wrong.").end();
+//         }
+//       }
+//       break;
+
+//     default:
+//       res.end("you need to post");
+//       break;
+//   }
+// });
