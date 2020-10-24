@@ -145,7 +145,6 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/addsite", async (req, res) => {
-  console.log(req.headers);
   switch (req.method) {
     case "POST":
       if (
@@ -158,9 +157,7 @@ app.post("/api/addsite", async (req, res) => {
       ) {
         return res.status(401).end("bad req");
       }
-      console.log(req.headers.token);
       const decodedToken = jwt_decode(req.headers.token);
-      console.log(decodedToken);
       const userInfo = await db.userdata.findOne({
         where: { userid: decodedToken.sub },
       });
@@ -176,7 +173,6 @@ app.post("/api/addsite", async (req, res) => {
           serverpassword: req.headers.serverpassword,
         });
         //* JSON obj is now +1
-        console.log(serverList.length);
         try {
           const updateLog = await db.userdata.update(
             {
@@ -188,7 +184,6 @@ app.post("/api/addsite", async (req, res) => {
               plain: true,
             }
           );
-          console.log(updateLog);
           res.json({ message: "Success" });
         } catch (error) {
           console.log("Update error in /api/addsite update: ", error);
@@ -215,6 +210,7 @@ app.post("/api/addsite", async (req, res) => {
               plain: true,
             }
           );
+          res.json({ message: "Success" });
         } catch (error) {
           console.log("Update error in /api/addsite create: ");
           res.json({ message: "Opps! Something went wrong" });
