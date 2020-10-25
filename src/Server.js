@@ -73,6 +73,45 @@ app.get("/api/query/:id*", async (req, res) => {
   }
 });
 
+app.get("/api/querybackups/:id*", async (req, res) => {
+  // console.log('here we go.', req.params['id']);
+  if (!req.body) {
+    return res.status(404).json("Opps! Something went wrong.").end();
+  } else {
+    const decodedToken = jwt_decode(req.body.userToken);
+    try {
+      const userInfo = await db.user.findOne({
+        where: {
+          email: decodedToken.myPersonEmail
+        },
+      });
+      if (userInfo && userInfo.id === decodedToken.sub) {
+        // Authenticated request
+        try {
+          console.log(decodedToken.sub);
+          const userDataInfo = await db.userdata.findOne({
+            where: {
+              userid: decodedToken.sub
+            },
+          });
+          res
+            .status(253)
+            .json({
+              rowId: userDataInfo.id,
+              data: userDataInfo.backups
+            });
+        } catch (error) {
+          console.log("error, backups doesnt exist for user");
+          res.status(401).end();
+        }
+      }
+    } catch (seqFindErr) {
+      return res.status(404).json("Opps! Something went wrong.").end();
+    }
+  }
+});
+
+
 // Registers user into MySql
 app.post("/api/registeruser", async (req, res) => {
   // let user;
@@ -291,7 +330,7 @@ app.post("/api/checkauth", async (req, res) => {
 app.post("/api/addpaiduser", async (req, res) => {
   switch (req.method) {
     case "POST":
-      console.log('in server'); 
+      console.log('in server');
       if (!req.body) {
         return res.status(404).json("Opps! Something went wrong.").end();
       } else {
@@ -338,6 +377,100 @@ app.post("/api/addpaiduser", async (req, res) => {
   }
 });
 
+app.post("/api/checkpaiduser", async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      try {
+        const decodedToken = jwt_decode(req.body.userToken);
+        console.log(decodedToken);
+        const userInfo = await db.user.findOne({
+          where: {
+            id: decodedToken.sub
+          },
+        });
+        if (userInfo.memberStatus === "true") {
+          // Paid member
+          return res.json({
+            message: "Authenticated Paid Member"
+          });
+        } else {
+          // Not paid memeber
+          return res.json({
+            message: "Opps! Something went wrong."
+          });
+        }
+      } catch (error) {
+        console.log('the error in /api/checkpaiduser: ', error);
+        return res.json({
+          message: "Opps! Something went wrong."
+        });
+
+      }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+});
+
+app.post("/api/addbackup", async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      try {
+        const decodedToken = jwt_decode(req.body.userToken);
+        const userInfo = await db.user.findOne({
+          where: {
+            id: decodedToken.sub
+          },
+        });
+        if (userInfo.memberStatus === "true") {
+          // Paid member
+          console.log('user authed');
+          console.log(req.body);
+          const userDataInfo = await db.userdata.findOne({
+            where: {
+              userid: decodedToken.sub
+            },
+          });
+          var backupList = JSON.parse(userDataInfo.backups) ?? [];
+          var serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
+          // console.log(backupList);
+          backupList.push(serverList[req.body.ftpListCount])
+
+          // now add to backup column
+          const updateLog = await db.userdata.update({
+            backups: JSON.stringify(backupList),
+          }, {
+            returning: true,
+            where: {
+              userid: decodedToken.sub
+            },
+            plain: true,
+          });
+          return res.json({
+            message: "Authenticated Paid Member"
+          });
+        } else {
+          // Not paid memeber
+          return res.json({
+            message: "Opps! Something went wrong."
+          });
+        }
+      } catch (error) {
+        console.log('the error in /api/checkpaiduser: ', error);
+        return res.json({
+          message: "Opps! Something went wrong."
+        });
+
+      }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+});
 
 // app.post("/api/auth-bootstrap", async (req, res) => {
 //   switch (req.method) {
