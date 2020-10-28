@@ -482,17 +482,7 @@ app.put("/api/contact", async (req, res) => {
       if (!req.body) {
         return res.status(404).json("Opps! Something went wrong.").end();
       } else {
-        console.log(req.body);
-        const decodedToken = jwt_decode(req.body.userToken);
-        console.log(decodedToken);
         try {
-          const userInfo = await db.user.findOne({
-            where: { email: decodedToken.myPersonEmail },
-          });
-          if (userInfo && userInfo.id === decodedToken.sub) {
-            // Authenticated request
-            console.log('Authenticated request');
-            // console.log(req.body);
             try {
               const updateLog = await db.contact.create({
                 fullname: req.body.fullname,
@@ -500,9 +490,6 @@ app.put("/api/contact", async (req, res) => {
                 message: req.body.message,
               }, {
                 returning: true,
-                where: {
-                  userid: decodedToken.sub
-                },
                 plain: true,
               });
               if(updateLog){
@@ -515,9 +502,8 @@ app.put("/api/contact", async (req, res) => {
               res.json({message: "Opps! An error has occured."})
             }
             res.end()
-          }
         } catch (seqFindErr) {
-          return res.status(404).json("Opps! Something went wrong.").end();
+          res.json({message: "Opps! An error has occured."})
         }
       }
       break;
