@@ -3,6 +3,8 @@ const path = require('path')
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
 const user = require("./User");
 const userdata = require("./UserData");
+const contact = require("./Contact");
+
 
 const Sequelize = require("sequelize");
 
@@ -19,6 +21,7 @@ let sequelize = new Sequelize(
 const db = {
     user: user(sequelize, Sequelize),
     userdata: userdata(sequelize, Sequelize),
+    contact: contact(sequelize, Sequelize),
 };
 
 Object.keys(db).forEach((modelName) => {
