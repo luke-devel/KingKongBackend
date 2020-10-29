@@ -18,7 +18,8 @@
     "express-busboy": "^8.0.0",
     "jsonwebtoken": "^8.5.1",
     "jwt-decode": "^3.0.0",
-    "moment": "^2.29.0",
+    "moment": "^2.29.1",
+    "nodemailer": "^6.4.14",
     "nodemon": "^2.0.4"
   },
   "devDependencies": {
