@@ -8,6 +8,7 @@ import {
   Sequelize
 } from "sequelize";
 import bb from "express-busboy";
+import { json } from "body-parser";
 
 const port = process.env.PORT;
 const app = express();
@@ -31,6 +32,9 @@ app.listen(port, process.env.HOST, () => {
 
 app.get("/", (req, res) => {
   res.json("Hello World");
+  // db.sequelize.sync().then(function () {
+  //   console.log(`done`);
+  // });
   res.end();
 });
 
@@ -468,6 +472,58 @@ app.post("/api/addbackup", async (req, res) => {
 
     default:
       res.end("you need to post");
+      break;
+  }
+});
+
+app.put("/api/contact", async (req, res) => {
+  switch (req.method) {
+    case "PUT":
+      if (!req.body) {
+        return res.status(404).json("Opps! Something went wrong.").end();
+      } else {
+        console.log(req.body);
+        const decodedToken = jwt_decode(req.body.userToken);
+        console.log(decodedToken);
+        try {
+          const userInfo = await db.user.findOne({
+            where: { email: decodedToken.myPersonEmail },
+          });
+          if (userInfo && userInfo.id === decodedToken.sub) {
+            // Authenticated request
+            console.log('Authenticated request');
+            // console.log(req.body);
+            try {
+              const updateLog = await db.contact.create({
+                fullname: req.body.fullname,
+                email: req.body.email,
+                message: req.body.message,
+              }, {
+                returning: true,
+                where: {
+                  userid: decodedToken.sub
+                },
+                plain: true,
+              });
+              if(updateLog){
+                // row create success
+                res.json({message: "Success"})
+              }
+            } catch (error) {
+              // row create error
+              console.log('err here in /api/contact: ');
+              res.json({message: "Opps! An error has occured."})
+            }
+            res.end()
+          }
+        } catch (seqFindErr) {
+          return res.status(404).json("Opps! Something went wrong.").end();
+        }
+      }
+      break;
+
+    default:
+      res.end("you need to put");
       break;
   }
 });
