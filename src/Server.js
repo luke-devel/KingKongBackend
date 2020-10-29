@@ -3,12 +3,18 @@ import bcrypt from "bcrypt";
 import db from "../models";
 import jwt from "jsonwebtoken";
 import jwt_decode from "jwt-decode";
-import {
-  QueryTypes,
-  Sequelize
-} from "sequelize";
+import { QueryTypes, Sequelize } from "sequelize";
 import bb from "express-busboy";
-import { json } from "body-parser";
+import nodemailer from "nodemailer";
+import moment from 'moment';
+
+let transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.GMAIL_FROM,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 const port = process.env.PORT;
 const app = express();
@@ -18,7 +24,8 @@ bb.extend(app);
 let sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USERNAME,
-  process.env.DB_PASSWORD, {
+  process.env.DB_PASSWORD,
+  {
     host: process.env.DB_HOST,
     dialect: "mysql",
     operatorsAliases: false,
@@ -48,7 +55,7 @@ app.get("/api/query/:id*", async (req, res) => {
     try {
       const userInfo = await db.user.findOne({
         where: {
-          email: decodedToken.myPersonEmail
+          email: decodedToken.myPersonEmail,
         },
       });
       if (userInfo && userInfo.id === decodedToken.sub) {
@@ -56,16 +63,14 @@ app.get("/api/query/:id*", async (req, res) => {
         try {
           const userDataInfo = await db.userdata.findOne({
             where: {
-              userid: decodedToken.sub
+              userid: decodedToken.sub,
             },
           });
           // Todo: add row id into this jsonObj
-          res
-            .status(253)
-            .json({
-              rowId: userDataInfo.id,
-              data: userDataInfo.ftpservers
-            });
+          res.status(253).json({
+            rowId: userDataInfo.id,
+            data: userDataInfo.ftpservers,
+          });
         } catch (error) {
           console.log("error, ftptables doesnt exist for user");
           res.status(401).end();
@@ -86,7 +91,7 @@ app.get("/api/querybackups/:id*", async (req, res) => {
     try {
       const userInfo = await db.user.findOne({
         where: {
-          email: decodedToken.myPersonEmail
+          email: decodedToken.myPersonEmail,
         },
       });
       if (userInfo && userInfo.id === decodedToken.sub) {
@@ -95,15 +100,13 @@ app.get("/api/querybackups/:id*", async (req, res) => {
           console.log(decodedToken.sub);
           const userDataInfo = await db.userdata.findOne({
             where: {
-              userid: decodedToken.sub
+              userid: decodedToken.sub,
             },
           });
-          res
-            .status(253)
-            .json({
-              rowId: userDataInfo.id,
-              data: userDataInfo.backups
-            });
+          res.status(253).json({
+            rowId: userDataInfo.id,
+            data: userDataInfo.backups,
+          });
         } catch (error) {
           console.log("error, backups doesnt exist for user");
           res.status(401).end();
@@ -114,7 +117,6 @@ app.get("/api/querybackups/:id*", async (req, res) => {
     }
   }
 });
-
 
 // Registers user into MySql
 app.post("/api/registeruser", async (req, res) => {
@@ -137,14 +139,14 @@ app.post("/api/registeruser", async (req, res) => {
       if (user) {
         const claims = {
           sub: user.id,
-          myPersonEmail: user.email
+          myPersonEmail: user.email,
         };
         const token = jwt.sign(claims, process.env.JWT_PRIVATE_KEY, {
           expiresIn: "1hr",
         });
         // Status is returned if row was added into database with no error.
         return res.json({
-          authToken: token
+          authToken: token,
         });
       }
     } catch (seqErr) {
@@ -180,17 +182,17 @@ app.post("/api/login", async (req, res) => {
           if (result === true) {
             const claims = {
               sub: user.id,
-              myPersonEmail: user.email
+              myPersonEmail: user.email,
             };
             const token = jwt.sign(claims, process.env.JWT_PRIVATE_KEY, {
               expiresIn: "1hr",
             });
             return res.json({
-              authToken: token
+              authToken: token,
             });
           } else {
             res.json({
-              message: "Opps! Something went wrong."
+              message: "Opps! Something went wrong.",
             });
           }
         } else {
@@ -223,7 +225,7 @@ app.post("/api/addsite", async (req, res) => {
       const decodedToken = jwt_decode(req.headers.token);
       const userInfo = await db.userdata.findOne({
         where: {
-          userid: decodedToken.sub
+          userid: decodedToken.sub,
         },
       });
       if (userInfo) {
@@ -239,49 +241,57 @@ app.post("/api/addsite", async (req, res) => {
         });
         //* JSON obj is now +1
         try {
-          const updateLog = await db.userdata.update({
-            ftpservers: JSON.stringify(serverList),
-          }, {
-            returning: true,
-            where: {
-              userid: decodedToken.sub
+          const updateLog = await db.userdata.update(
+            {
+              ftpservers: JSON.stringify(serverList),
             },
-            plain: true,
-          });
+            {
+              returning: true,
+              where: {
+                userid: decodedToken.sub,
+              },
+              plain: true,
+            }
+          );
           res.json({
-            message: "Success"
+            message: "Success",
           });
         } catch (error) {
           console.log("Update error in /api/addsite update: ", error);
           res.json({
-            message: "Opps! Something went wrong"
+            message: "Opps! Something went wrong",
           });
         }
       } else {
         try {
-          const createLog = await db.userdata.create({
-            userid: decodedToken.sub,
-            ftpservers: JSON.stringify([{
-              serverdescription: req.headers.serverdescription,
-              serveraddress: req.headers.serveraddress,
-              serverport: req.headers.serverport,
-              serverusername: req.headers.serverusername,
-              serverpassword: req.headers.serverpassword,
-            }, ]),
-          }, {
-            returning: true,
-            where: {
-              userid: decodedToken.id
+          const createLog = await db.userdata.create(
+            {
+              userid: decodedToken.sub,
+              ftpservers: JSON.stringify([
+                {
+                  serverdescription: req.headers.serverdescription,
+                  serveraddress: req.headers.serveraddress,
+                  serverport: req.headers.serverport,
+                  serverusername: req.headers.serverusername,
+                  serverpassword: req.headers.serverpassword,
+                },
+              ]),
             },
-            plain: true,
-          });
+            {
+              returning: true,
+              where: {
+                userid: decodedToken.id,
+              },
+              plain: true,
+            }
+          );
           res.json({
-            message: "Success"
+            message: "Success",
           });
         } catch (error) {
           console.log("Update error in /api/addsite create: ");
           res.json({
-            message: "Opps! Something went wrong"
+            message: "Opps! Something went wrong",
           });
         }
       }
@@ -309,13 +319,13 @@ app.post("/api/checkauth", async (req, res) => {
         try {
           const userInfo = await db.user.findOne({
             where: {
-              email: decodedToken.myPersonEmail
+              email: decodedToken.myPersonEmail,
             },
           });
           if (userInfo && userInfo.id === decodedToken.sub) {
             // Authenticated request
             return res.json({
-              message: "Authenticated"
+              message: "Authenticated",
             });
             res.end();
           }
@@ -334,7 +344,7 @@ app.post("/api/checkauth", async (req, res) => {
 app.post("/api/addpaiduser", async (req, res) => {
   switch (req.method) {
     case "POST":
-      console.log('in server');
+      console.log("in server");
       if (!req.body) {
         return res.status(404).json("Opps! Something went wrong.").end();
       } else {
@@ -342,30 +352,33 @@ app.post("/api/addpaiduser", async (req, res) => {
         try {
           const userInfo = await db.user.findOne({
             where: {
-              email: decodedToken.myPersonEmail
+              email: decodedToken.myPersonEmail,
             },
           });
           if (userInfo && userInfo.id === decodedToken.sub) {
             // Authenticated request
-            console.log('Authenticated request');
+            console.log("Authenticated request");
             try {
-              const updateLog = await db.user.update({
-                memberStatus: 'true',
-              }, {
-                returning: true,
-                where: {
-                  id: userInfo.id
+              const updateLog = await db.user.update(
+                {
+                  memberStatus: "true",
                 },
-                plain: true,
-              });
+                {
+                  returning: true,
+                  where: {
+                    id: userInfo.id,
+                  },
+                  plain: true,
+                }
+              );
               console.log(userInfo.id);
               res.json({
-                message: "Success"
+                message: "Success",
               });
             } catch (error) {
               console.log("Update error in /api/addpaiduser update: ", error);
               res.json({
-                message: "Opps! Something went wrong"
+                message: "Opps! Something went wrong",
               });
             }
           }
@@ -389,26 +402,25 @@ app.post("/api/checkpaiduser", async (req, res) => {
         console.log(decodedToken);
         const userInfo = await db.user.findOne({
           where: {
-            id: decodedToken.sub
+            id: decodedToken.sub,
           },
         });
         if (userInfo.memberStatus === "true") {
           // Paid member
           return res.json({
-            message: "Authenticated Paid Member"
+            message: "Authenticated Paid Member",
           });
         } else {
           // Not paid memeber
           return res.json({
-            message: "Opps! Something went wrong."
+            message: "Opps! Something went wrong.",
           });
         }
       } catch (error) {
-        console.log('the error in /api/checkpaiduser: ', error);
+        console.log("the error in /api/checkpaiduser: ", error);
         return res.json({
-          message: "Opps! Something went wrong."
+          message: "Opps! Something went wrong.",
         });
-
       }
       break;
 
@@ -425,48 +437,50 @@ app.post("/api/addbackup", async (req, res) => {
         const decodedToken = jwt_decode(req.body.userToken);
         const userInfo = await db.user.findOne({
           where: {
-            id: decodedToken.sub
+            id: decodedToken.sub,
           },
         });
         if (userInfo.memberStatus === "true") {
           // Paid member
-          console.log('user authed');
+          console.log("user authed");
           console.log(req.body);
           const userDataInfo = await db.userdata.findOne({
             where: {
-              userid: decodedToken.sub
+              userid: decodedToken.sub,
             },
           });
           var backupList = JSON.parse(userDataInfo.backups) ?? [];
           var serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
           // console.log(backupList);
-          backupList.push(serverList[req.body.ftpListCount])
+          backupList.push(serverList[req.body.ftpListCount]);
 
           // now add to backup column
-          const updateLog = await db.userdata.update({
-            backups: JSON.stringify(backupList),
-          }, {
-            returning: true,
-            where: {
-              userid: decodedToken.sub
+          const updateLog = await db.userdata.update(
+            {
+              backups: JSON.stringify(backupList),
             },
-            plain: true,
-          });
+            {
+              returning: true,
+              where: {
+                userid: decodedToken.sub,
+              },
+              plain: true,
+            }
+          );
           return res.json({
-            message: "Authenticated Paid Member"
+            message: "Authenticated Paid Member",
           });
         } else {
           // Not paid memeber
           return res.json({
-            message: "Opps! Something went wrong."
+            message: "Opps! Something went wrong.",
           });
         }
       } catch (error) {
-        console.log('the error in /api/checkpaiduser: ', error);
+        console.log("the error in /api/checkpaiduser: ", error);
         return res.json({
-          message: "Opps! Something went wrong."
+          message: "Opps! Something went wrong.",
         });
-
       }
       break;
 
@@ -483,27 +497,44 @@ app.put("/api/contact", async (req, res) => {
         return res.status(404).json("Opps! Something went wrong.").end();
       } else {
         try {
-            try {
-              const updateLog = await db.contact.create({
+          try {
+            const updateLog = await db.contact.create(
+              {
                 fullname: req.body.fullname,
                 email: req.body.email,
                 message: req.body.message,
-              }, {
+              },
+              {
                 returning: true,
                 plain: true,
-              });
-              if(updateLog){
-                // row create success
-                res.json({message: "Success"})
               }
-            } catch (error) {
-              // row create error
-              console.log('err here in /api/contact: ');
-              res.json({message: "Opps! An error has occured."})
+            );
+            if (updateLog) {
+              // row create success
+              var mailOptions = {
+                from: process.env.GMAIL_FROM,
+                to: process.env.GMAIL_TO,
+                subject: `New KingKong Contact Message: ${moment().format('MMMM Do YYYY, h:mm:ss a')}`,
+                text: `From: ${req.body.fullname}, ${req.body.email}\nMessage: ${req.body.message}`,
+              };
+
+              transporter.sendMail(mailOptions, function (error, info) {
+                if (error) {
+                  console.log(error);
+                } else {
+                  console.log("Email sent: " + info.response);
+                }
+              });
+              res.json({ message: "Success" });
             }
-            res.end()
+          } catch (error) {
+            // row create error
+            console.log("err here in /api/contact: ", error);
+            res.json({ message: "Opps! An error has occured." });
+          }
+          res.end();
         } catch (seqFindErr) {
-          res.json({message: "Opps! An error has occured."})
+          res.json({ message: "Opps! An error has occured." });
         }
       }
       break;
