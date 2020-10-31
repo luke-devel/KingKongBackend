@@ -45,6 +45,14 @@ app.get("/", (req, res) => {
   res.end();
 });
 
+app.get("/testbackup", (req, res) => {
+  res.json("Hello World");
+  // db.sequelize.sync().then(function () {
+  //   console.log(`done`);
+  // });
+  res.end();
+});
+
 // gets users json ftp server data
 app.get("/api/query/:id*", async (req, res) => {
   // console.log('here we go.', req.params['id']);
@@ -451,9 +459,12 @@ app.post("/api/addbackup", async (req, res) => {
           });
           var backupList = JSON.parse(userDataInfo.backups) ?? [];
           var serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
-          // console.log(backupList);
+          console.log(backupList);
           backupList.push(serverList[req.body.ftpListCount]);
-
+          backupList.map((list)=>{
+            list.backupStatus = 'pending'
+          })
+          console.log(backupList);
           // now add to backup column
           const updateLog = await db.userdata.update(
             {
