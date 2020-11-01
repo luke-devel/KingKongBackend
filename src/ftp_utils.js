@@ -24,6 +24,7 @@ export const pull_sftp = async (
   decodedToken,
   currentBackupIndex,
 ) => {
+  console.log('>>>>>>>>>>>>>>>>', dest);
   const client = new SftpClient("pull-sftp");
   const dst = dest;
   const src = ".";
@@ -106,6 +107,9 @@ export const pull_ftp = async (
   currentBackupIndex,
   secure = false
 ) => {
+  console.log('Inside ftp_utils.js, ', decodedToken);
+  console.log('destination, ', dest);
+
   const client = new ftp.Client();
 
   client.trackProgress((info) => {
@@ -152,7 +156,7 @@ export const pull_ftp = async (
     console.log(await client.list());
     await client.downloadToDir(dest, "/");
   } catch (err) {
-    console.log("ftp_error");
+    console.log("ftp_error", err);
     try {
       const userData = await db.userdata.findOne({
         where: {
@@ -174,11 +178,12 @@ export const pull_ftp = async (
         }
       );
       // now if the ftp pull failed, then backupStatus will be marked 'fail'
+      return;
     } catch (error) {
       console.log("err here", error);
     }
   } finally {
-    console.log('FTP download successful for user id: ', decodedToken.sub);
+    console.log('>>>>>> FTP download successful for user id: ', decodedToken.sub);
     try {
       const userData = await db.userdata.findOne({
         where: {
