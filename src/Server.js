@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import db from "../models";
-import jwt from "jsonwebtoken";
+import jwt, { decode } from "jsonwebtoken";
 import jwt_decode from "jwt-decode";
 import { QueryTypes, Sequelize } from "sequelize";
 import bb from "express-busboy";
@@ -498,9 +498,10 @@ app.post("/api/addbackup", async (req, res) => {
               userid: decodedToken.sub,
             },
           });
-          var backupList = JSON.parse(userDataInfo.backups) ?? [];
-          var serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
+          let backupList = JSON.parse(userDataInfo.backups) ?? [];
+          let serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
           backupList.push(serverList[req.body.ftpListCount]);
+          let currentBackupIndex = backupList.length;
           backupList.map((list) => {
             if (
               list.backupStatus === "active" ||
@@ -525,8 +526,23 @@ app.post("/api/addbackup", async (req, res) => {
                 plain: true,
               }
             );
-            console.log("add backup update success!\nBeginning FTP Pull");
-            // pull_ftp()
+            console.log(
+              `add backup update success!\nBeginning FTP Pull for: ${userInfo.email}`
+            );
+            if (serverList[req.body.ftpListCount].servertype === "ftp") {
+              // ftp
+              pull_ftp(
+                serverList[req.body.ftpListCount].serveraddress,
+                serverList[req.body.ftpListCount].serverport,
+                serverList[req.body.ftpListCount].serverusername,
+                serverList[req.body.ftpListCount].serverpassword,
+                "/user/luke/ftpbackup",
+                decodedToken,
+                currentBackupIndex
+              )
+            } else {
+              // sftp
+            }
             return res.json({
               message: "Success",
             });

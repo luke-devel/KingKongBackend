@@ -1,6 +1,7 @@
 const ftp = require("basic-ftp");
 import SftpClient from "ssh2-sftp-client";
 import path from "path";
+import db from "../models";
 
 const formatBytes = (a, b = 2) => {
   if (0 === a) return "0 Bytes";
@@ -47,15 +48,14 @@ export const pull_ftp = async (
   uname,
   pwd,
   dest,
+  decodedToken,
+  currentBackupIndex,
   secure = false
 ) => {
   const client = new ftp.Client();
 
   client.trackProgress((info) => {
     //Called every time a file is added
-    console.log("File", info.name);
-    console.log("Type", info.type);
-    console.log("Transferred", formatBytes(info.bytes));
     console.log("Transferred Overall", formatBytes(info.bytesOverall));
   });
 
@@ -70,14 +70,85 @@ export const pull_ftp = async (
       });
     } catch (err) {
       console.log("ftp_connection_error");
-      //   obj.errors.push("ftp_connection_error");
+      try {
+        const userData = await db.userdata.findOne({
+          where: {
+            userid: decodedToken.sub,
+          },
+        });
+        let backupList = JSON.parse(userData.backups);
+        backupList[currentBackupIndex - 1].backupStatus = "fail";
+        const updateLog = await db.userdata.update(
+          {
+            backups: JSON.stringify(backupList),
+          },
+          {
+            returning: true,
+            where: {
+              id: decodedToken.sub,
+            },
+            plain: true,
+          }
+        );
+        // now if the ftp pull failed, then backupStatus will be marked 'fail'
+      } catch (error) {
+        console.log("err here", error);
+      }
     }
     console.log(await client.list());
     await client.downloadToDir(dest, "/");
   } catch (err) {
     console.log("ftp_error");
-    console.log(err);
+    try {
+      const userData = await db.userdata.findOne({
+        where: {
+          userid: decodedToken.sub,
+        },
+      });
+      let backupList = JSON.parse(userData.backups);
+      backupList[currentBackupIndex - 1].backupStatus = "fail";
+      const updateLog = await db.userdata.update(
+        {
+          backups: JSON.stringify(backupList),
+        },
+        {
+          returning: true,
+          where: {
+            id: decodedToken.sub,
+          },
+          plain: true,
+        }
+      );
+      // now if the ftp pull failed, then backupStatus will be marked 'fail'
+    } catch (error) {
+      console.log("err here", error);
+    }
   } finally {
+    console.log("Successfully pulled FTP server");
+    try {
+      const userData = await db.userdata.findOne({
+        where: {
+          userid: decodedToken.sub,
+        },
+      });
+      let backupList = JSON.parse(userData.backups);
+      backupList[currentBackupIndex - 1].backupStatus = "active";
+      const updateLog = await db.userdata.update(
+        {
+          backups: JSON.stringify(backupList),
+        },
+        {
+          returning: true,
+          where: {
+            id: decodedToken.sub,
+          },
+          plain: true,
+        }
+      );
+      // now if the ftp pull failed, then backupStatus will be marked 'fail'
+    } catch (error) {
+      console.log("err here in success ftp_pull");
+    }
     await client.close();
   }
 };
