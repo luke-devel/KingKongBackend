@@ -15,7 +15,15 @@ const formatBytes = (a, b = 2) => {
 };
 
 //Duplicate an sftp server
-export const pull_sftp = async (hostname, portnum, uname, pwd, dest, obj) => {
+export const pull_sftp = async (
+  hostname,
+  portnum,
+  uname,
+  pwd,
+  dest,
+  decodedToken,
+  currentBackupIndex,
+) => {
   const client = new SftpClient("pull-sftp");
   const dst = dest;
   const src = ".";
@@ -29,14 +37,60 @@ export const pull_sftp = async (hostname, portnum, uname, pwd, dest, obj) => {
     await client.connect(config);
     client.on("download", (info) => {
       console.log(`Listener: Download ${info.source}`);
-      //obj.files.push(info.source);
     });
     let rslt = await client.downloadDir(src, dst);
     return rslt;
   } catch (err) {
-    obj.errors.push("sftp_failed");
     console.log(err);
+    // Err: set backupStatus to 'fail'
+    try {
+      const userData = await db.userdata.findOne({
+        where: {
+          userid: decodedToken.sub,
+        },
+      });
+      let backupList = JSON.parse(userData.backups);
+      backupList[currentBackupIndex - 1].backupStatus = "fail";
+      const updateLog = await db.userdata.update(
+        {
+          backups: JSON.stringify(backupList),
+        },
+        {
+          returning: true,
+          where: {
+            id: decodedToken.sub,
+          },
+          plain: true,
+        }
+      );
+    } catch (error) {
+      console.log("err here", error);
+    }
   } finally {
+    console.log('SFTP download successful for user id: ', decodedToken.sub);
+    try {
+      const userData = await db.userdata.findOne({
+        where: {
+          userid: decodedToken.sub,
+        },
+      });
+      let backupList = JSON.parse(userData.backups);
+      backupList[currentBackupIndex - 1].backupStatus = "active";
+      const updateLog = await db.userdata.update(
+        {
+          backups: JSON.stringify(backupList),
+        },
+        {
+          returning: true,
+          where: {
+            id: decodedToken.sub,
+          },
+          plain: true,
+        }
+      );
+    } catch (error) {
+      console.log("err here in success sftp for user id: ", decodedToken.sub);
+    }
     await client.end();
   }
 };
@@ -124,7 +178,7 @@ export const pull_ftp = async (
       console.log("err here", error);
     }
   } finally {
-    console.log("Successfully pulled FTP server");
+    console.log('FTP download successful for user id: ', decodedToken.sub);
     try {
       const userData = await db.userdata.findOne({
         where: {
@@ -147,7 +201,7 @@ export const pull_ftp = async (
       );
       // now if the ftp pull failed, then backupStatus will be marked 'fail'
     } catch (error) {
-      console.log("err here in success ftp_pull");
+      console.log("err here in success ftp for user id: ", decodedToken.sub);
     }
     await client.close();
   }
