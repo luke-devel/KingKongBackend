@@ -7,7 +7,7 @@ import { QueryTypes, Sequelize } from "sequelize";
 import bb from "express-busboy";
 import nodemailer from "nodemailer";
 import moment from "moment";
-import { pull_ftp } from "./ftp_utils";
+import { pull_ftp, pull_sftp } from "./ftp_utils";
 
 let transporter = nodemailer.createTransport({
   service: "gmail",
@@ -539,15 +539,43 @@ app.post("/api/addbackup", async (req, res) => {
                 "/user/luke/ftpbackup",
                 decodedToken,
                 currentBackupIndex
-              )
+              );
             } else {
-              // sftp
+              //! sftp
+              pull_sftp(
+                serverList[req.body.ftpListCount].serveraddress,
+                serverList[req.body.ftpListCount].serverport,
+                serverList[req.body.ftpListCount].serverusername,
+                serverList[req.body.ftpListCount].serverpassword,
+                `/user/luke/ftpbackup/sftp/${serverList[req.body.ftpListCount].serveraddress}`,
+                decodedToken,
+                currentBackupIndex
+              );
             }
             return res.json({
               message: "Success",
             });
           } catch (error) {
             console.log("error in addbackup try-catch: ", error);
+            const userData = await db.userdata.findOne({
+              where: {
+                userid: decodedToken.sub,
+              },
+            });
+            let backupListFail = JSON.parse(userData.backups);
+            backupListFail[currentBackupIndex - 1].backupStatus = "fail";
+            const updateLog = await db.userdata.update(
+              {
+                backups: JSON.stringify(backupListFail),
+              },
+              {
+                returning: true,
+                where: {
+                  id: decodedToken.sub,
+                },
+                plain: true,
+              }
+            );
             return res.json({
               message: "Opps! Something went wrong.",
             });
