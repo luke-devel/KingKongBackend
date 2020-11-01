@@ -6,7 +6,8 @@ import jwt_decode from "jwt-decode";
 import { QueryTypes, Sequelize } from "sequelize";
 import bb from "express-busboy";
 import nodemailer from "nodemailer";
-import moment from 'moment';
+import moment from "moment";
+import { pull_ftp } from "./ftp_utils";
 
 let transporter = nodemailer.createTransport({
   service: "gmail",
@@ -349,6 +350,48 @@ app.post("/api/checkauth", async (req, res) => {
   }
 });
 
+app.post("/api/checkadmin", async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      if (!req.body) {
+        return res.status(404).json("Opps! Something went wrong.").end();
+      } else {
+        const decodedToken = jwt_decode(req.body.userToken);
+        try {
+          const userInfo = await db.user.findOne({
+            where: {
+              email: decodedToken.myPersonEmail,
+            },
+          });
+          if (userInfo && userInfo.id === decodedToken.sub) {
+            // Authenticated request, now we check if admin
+            const userInfo = await db.user.findOne({
+              where: {
+                id: decodedToken.sub,
+              },
+            });
+            if (userInfo.adminStatus === "true") {
+              return res.json({
+                message: "Authenticated",
+              });
+            } else {
+              return res.json({
+                message: "Oops! An error has occured.",
+              });
+            }
+          }
+        } catch (seqFindErr) {
+          return res.status(404).json("Opps! Something went wrong.").end();
+        }
+      }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+});
+
 app.post("/api/addpaiduser", async (req, res) => {
   switch (req.method) {
     case "POST":
@@ -450,8 +493,6 @@ app.post("/api/addbackup", async (req, res) => {
         });
         if (userInfo.memberStatus === "true") {
           // Paid member
-          console.log("user authed");
-          console.log(req.body);
           const userDataInfo = await db.userdata.findOne({
             where: {
               userid: decodedToken.sub,
@@ -459,28 +500,42 @@ app.post("/api/addbackup", async (req, res) => {
           });
           var backupList = JSON.parse(userDataInfo.backups) ?? [];
           var serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
-          console.log(backupList);
           backupList.push(serverList[req.body.ftpListCount]);
-          backupList.map((list)=>{
-            list.backupStatus = 'pending'
-          })
-          console.log(backupList);
-          // now add to backup column
-          const updateLog = await db.userdata.update(
-            {
-              backups: JSON.stringify(backupList),
-            },
-            {
-              returning: true,
-              where: {
-                userid: decodedToken.sub,
-              },
-              plain: true,
+          backupList.map((list) => {
+            if (
+              list.backupStatus === "active" ||
+              list.backupStatus === "fail"
+            ) {
+              return;
+            } else {
+              list.backupStatus = "pending";
             }
-          );
-          return res.json({
-            message: "Authenticated Paid Member",
           });
+          // now add to backup column
+          try {
+            const updateLog = await db.userdata.update(
+              {
+                backups: JSON.stringify(backupList),
+              },
+              {
+                returning: true,
+                where: {
+                  userid: decodedToken.sub,
+                },
+                plain: true,
+              }
+            );
+            console.log("add backup update success!\nBeginning FTP Pull");
+            // pull_ftp()
+            return res.json({
+              message: "Success",
+            });
+          } catch (error) {
+            console.log("error in addbackup try-catch: ", error);
+            return res.json({
+              message: "Opps! Something went wrong.",
+            });
+          }
         } else {
           // Not paid memeber
           return res.json({
@@ -525,7 +580,9 @@ app.put("/api/contact", async (req, res) => {
               var mailOptions = {
                 from: process.env.GMAIL_FROM,
                 to: process.env.GMAIL_TO,
-                subject: `New KingKong Contact Message: ${moment().format('MMMM Do YYYY, h:mm:ss a')}`,
+                subject: `New KingKong Contact Message: ${moment().format(
+                  "MMMM Do YYYY, h:mm:ss a"
+                )}`,
                 text: `From: ${req.body.fullname}, ${req.body.email}\nMessage: ${req.body.message}`,
               };
 
@@ -536,16 +593,22 @@ app.put("/api/contact", async (req, res) => {
                   console.log("Email sent: " + info.response);
                 }
               });
-              res.json({ message: "Success" });
+              res.json({
+                message: "Success",
+              });
             }
           } catch (error) {
             // row create error
             console.log("err here in /api/contact: ", error);
-            res.json({ message: "Opps! An error has occured." });
+            res.json({
+              message: "Opps! An error has occured.",
+            });
           }
           res.end();
         } catch (seqFindErr) {
-          res.json({ message: "Opps! An error has occured." });
+          res.json({
+            message: "Opps! An error has occured.",
+          });
         }
       }
       break;
