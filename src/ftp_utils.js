@@ -50,7 +50,7 @@ export const pull_sftp = async (
           userid: decodedToken.sub,
         },
       });
-      let backupList = JSON.parse(userData.backups);
+      let backupList = await JSON.parse(userData.backups);
       backupList[currentBackupIndex - 1].backupStatus = "fail";
       const updateLog = await db.userdata.update(
         {
@@ -68,14 +68,14 @@ export const pull_sftp = async (
       console.log("err here", error);
     }
   } finally {
-    console.log('SFTP download successful for user id: ', decodedToken.sub);
+    console.log('SFTP download successful for user id: ', decodedToken.sub, currentBackupIndex);
     try {
       const userData = await db.userdata.findOne({
         where: {
           userid: decodedToken.sub,
         },
       });
-      let backupList = JSON.parse(userData.backups);
+      let backupList = await JSON.parse(userData.backups);
       backupList[currentBackupIndex - 1].backupStatus = "active";
       const updateLog = await db.userdata.update(
         {
