@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import db from "../models";
-import jwt from "jsonwebtoken";
+import jwt, { decode } from "jsonwebtoken";
 import jwt_decode from "jwt-decode";
 import { QueryTypes, Sequelize } from "sequelize";
 import bb from "express-busboy";
@@ -219,97 +219,97 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/addsite", async (req, res) => {
+  if (
+    !req.body.servertype ||
+    !req.body.serveraddress ||
+    !req.body.serverport ||
+    !req.body.serverusername ||
+    !req.body.serverpassword ||
+    !req.body.serverdescription
+  ) {
+    return res.json("Oops! An error has occured.");
+  }
   switch (req.method) {
     case "POST":
-      if (
-        !req.headers.serveraddress ||
-        !req.headers.serverport ||
-        !req.headers.serverusername ||
-        !req.headers.serverpassword ||
-        !req.headers.serverdescription ||
-        !req.headers.token
-      ) {
-        return res.status(401).end("bad req");
-      }
-      const decodedToken = jwt_decode(req.headers.token);
-      const userInfo = await db.userdata.findOne({
-        where: {
-          userid: decodedToken.sub,
-        },
-      });
-      if (userInfo) {
-        // user exists
-        var serverList = JSON.parse(userInfo.dataValues.ftpservers);
-        console.log(serverList.length);
-        serverList.push({
-          serverdescription: req.headers.serverdescription,
-          serveraddress: req.headers.serveraddress,
-          serverport: req.headers.serverport,
-          serverusername: req.headers.serverusername,
-          serverpassword: req.headers.serverpassword,
+      if (req.body.servertype === "ftp" || req.body.servertype === "sftp") {
+        const decodedToken = jwt_decode(req.body.token);
+        const userInfo = await db.userdata.findOne({
+          where: {
+            userid: decodedToken.sub,
+          },
         });
-        //* JSON obj is now +1
-        try {
-          const updateLog = await db.userdata.update(
-            {
-              ftpservers: JSON.stringify(serverList),
-            },
-            {
-              returning: true,
-              where: {
-                userid: decodedToken.sub,
+        if (userInfo) {
+          // user exists
+          var serverList = JSON.parse(userInfo.dataValues.ftpservers);
+          console.log(req.body.servertype);
+          serverList.push({
+            servertype: req.body.servertype,
+            serverdescription: req.body.serverdescription,
+            serveraddress: req.body.serveraddress,
+            serverport: req.body.serverport,
+            serverusername: req.body.serverusername,
+            serverpassword: req.body.serverpassword,
+          });
+          //* JSON obj is now +1
+          try {
+            const updateLog = await db.userdata.update(
+              {
+                ftpservers: JSON.stringify(serverList),
               },
-              plain: true,
-            }
-          );
-          res.json({
-            message: "Success",
-          });
-        } catch (error) {
-          console.log("Update error in /api/addsite update: ", error);
-          res.json({
-            message: "Opps! Something went wrong",
-          });
+              {
+                returning: true,
+                where: {
+                  userid: decodedToken.sub,
+                },
+                plain: true,
+              }
+            );
+            res.json({
+              message: "Success",
+            });
+          } catch (error) {
+            console.log("Update error in /api/addsite update: ", error);
+            res.json({
+              message: "Opps! Something went wrong",
+            });
+          }
+        } else {
+          try {
+            const createLog = await db.userdata.create(
+              {
+                userid: decodedToken.sub,
+                ftpservers: JSON.stringify([
+                  {
+                    servertype: req.body.servertype,
+                    serverdescription: req.body.serverdescription,
+                    serveraddress: req.body.serveraddress,
+                    serverport: req.body.serverport,
+                    serverusername: req.body.serverusername,
+                    serverpassword: req.body.serverpassword,
+                  },
+                ]),
+              },
+              {
+                returning: true,
+                where: {
+                  userid: decodedToken.id,
+                },
+                plain: true,
+              }
+            );
+            res.json({
+              message: "Success",
+            });
+          } catch (error) {
+            console.log("Update error in /api/addsite create: ");
+            res.json({
+              message: "Opps! Something went wrong",
+            });
+          }
         }
       } else {
-        try {
-          const createLog = await db.userdata.create(
-            {
-              userid: decodedToken.sub,
-              ftpservers: JSON.stringify([
-                {
-                  serverdescription: req.headers.serverdescription,
-                  serveraddress: req.headers.serveraddress,
-                  serverport: req.headers.serverport,
-                  serverusername: req.headers.serverusername,
-                  serverpassword: req.headers.serverpassword,
-                },
-              ]),
-            },
-            {
-              returning: true,
-              where: {
-                userid: decodedToken.id,
-              },
-              plain: true,
-            }
-          );
-          res.json({
-            message: "Success",
-          });
-        } catch (error) {
-          console.log("Update error in /api/addsite create: ");
-          res.json({
-            message: "Opps! Something went wrong",
-          });
-        }
+        return res.json("Oops! An error has occured.");
       }
-      // const doesUserExist = !userInfo.isNewRecord;
-      // if (doesUserExist) {
-
-      // } else {
-      //   res.end("user doesnt exist");
-      // }
       break;
 
     default:
@@ -498,9 +498,10 @@ app.post("/api/addbackup", async (req, res) => {
               userid: decodedToken.sub,
             },
           });
-          var backupList = JSON.parse(userDataInfo.backups) ?? [];
-          var serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
+          let backupList = JSON.parse(userDataInfo.backups) ?? [];
+          let serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
           backupList.push(serverList[req.body.ftpListCount]);
+          let currentBackupIndex = backupList.length;
           backupList.map((list) => {
             if (
               list.backupStatus === "active" ||
@@ -525,8 +526,23 @@ app.post("/api/addbackup", async (req, res) => {
                 plain: true,
               }
             );
-            console.log("add backup update success!\nBeginning FTP Pull");
-            // pull_ftp()
+            console.log(
+              `add backup update success!\nBeginning FTP Pull for: ${userInfo.email}`
+            );
+            if (serverList[req.body.ftpListCount].servertype === "ftp") {
+              // ftp
+              pull_ftp(
+                serverList[req.body.ftpListCount].serveraddress,
+                serverList[req.body.ftpListCount].serverport,
+                serverList[req.body.ftpListCount].serverusername,
+                serverList[req.body.ftpListCount].serverpassword,
+                "/user/luke/ftpbackup",
+                decodedToken,
+                currentBackupIndex
+              )
+            } else {
+              // sftp
+            }
             return res.json({
               message: "Success",
             });
