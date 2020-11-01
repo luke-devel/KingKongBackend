@@ -24,7 +24,7 @@ export const pull_sftp = async (
   decodedToken,
   currentBackupIndex,
 ) => {
-  console.log('>>>>>>>>>>>>>>>>', dest);
+  console.log('>>>>>>>>>>>>>>>>>', dest);
   const client = new SftpClient("pull-sftp");
   const dst = dest;
   const src = ".";

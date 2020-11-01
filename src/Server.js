@@ -526,28 +526,32 @@ app.post("/api/addbackup", async (req, res) => {
                 plain: true,
               }
             );
-            console.log(
-              `add backup update success!\nBeginning FTP Pull for: ${userInfo.email}`
-            );
+         
             if (serverList[req.body.ftpListCount].servertype === "ftp") {
               // ftp
+              console.log(
+                `add backup update success!\nBeginning FTP Pull for: ${userInfo.email}`
+              );
               pull_ftp(
                 serverList[req.body.ftpListCount].serveraddress,
                 serverList[req.body.ftpListCount].serverport,
                 serverList[req.body.ftpListCount].serverusername,
                 serverList[req.body.ftpListCount].serverpassword,
-                "/user/luke/ftpbackup",
+                `/home/luke/ftpbackup/ftp/${serverList[req.body.ftpListCount].serveraddress}`,
                 decodedToken,
                 currentBackupIndex
               );
             } else {
               //! sftp
+              console.log(
+                `add backup update success!\nBeginning SFTP Pull for: ${userInfo.email}`
+              );
               pull_sftp(
                 serverList[req.body.ftpListCount].serveraddress,
                 serverList[req.body.ftpListCount].serverport,
                 serverList[req.body.ftpListCount].serverusername,
                 serverList[req.body.ftpListCount].serverpassword,
-                `/user/luke/ftpbackup/sftp/${serverList[req.body.ftpListCount].serveraddress}`,
+                `/home/luke/ftpbackup/sftp/${serverList[req.body.ftpListCount].serveraddress}`,
                 decodedToken,
                 currentBackupIndex
               );
