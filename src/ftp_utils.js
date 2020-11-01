@@ -22,9 +22,11 @@ export const pull_sftp = async (
   pwd,
   dest,
   decodedToken,
-  currentBackupIndex,
+  currentBackupIndex
 ) => {
-  console.log('>>>>>>>>>>>>>>>>>', dest);
+  // Bool failed will check if err occured
+  let failed = false;
+  console.log(">>>>>>>> in SFTP");
   const client = new SftpClient("pull-sftp");
   const dst = dest;
   const src = ".";
@@ -43,6 +45,7 @@ export const pull_sftp = async (
     return rslt;
   } catch (err) {
     console.log(err);
+    failed = true;
     // Err: set backupStatus to 'fail'
     try {
       const userData = await db.userdata.findOne({
@@ -65,34 +68,45 @@ export const pull_sftp = async (
         }
       );
     } catch (error) {
+    failed = true;
+
       console.log("err here", error);
     }
   } finally {
-    console.log('SFTP download successful for user id: ', decodedToken.sub, currentBackupIndex);
-    try {
-      const userData = await db.userdata.findOne({
-        where: {
-          userid: decodedToken.sub,
-        },
-      });
-      let backupList = await JSON.parse(userData.backups);
-      backupList[currentBackupIndex - 1].backupStatus = "active";
-      const updateLog = await db.userdata.update(
-        {
-          backups: JSON.stringify(backupList),
-        },
-        {
-          returning: true,
-          where: {
-            id: decodedToken.sub,
-          },
-          plain: true,
-        }
+     if (failed) {
+      console.log(">>>>>>> FAILED!");
+      // await client.end();
+    } else {
+      console.log(
+        ">>>>>> FTP download successful for user id: ",
+        decodedToken.sub
       );
-    } catch (error) {
-      console.log("err here in success sftp for user id: ", decodedToken.sub);
+      try {
+        const userData = await db.userdata.findOne({
+          where: {
+            userid: decodedToken.sub,
+          },
+        });
+        let backupList = JSON.parse(userData.backups);
+        backupList[currentBackupIndex - 1].backupStatus = "active";
+        const updateLog = await db.userdata.update(
+          {
+            backups: JSON.stringify(backupList),
+          },
+          {
+            returning: true,
+            where: {
+              id: decodedToken.sub,
+            },
+            plain: true,
+          }
+        );
+        // now if the ftp pull failed, then backupStatus will be marked 'fail'
+      } catch (error) {
+        console.log("err here in success ftp for user id: ", decodedToken.sub);
+      }
+      await client.end();
     }
-    await client.end();
   }
 };
 
@@ -107,9 +121,10 @@ export const pull_ftp = async (
   currentBackupIndex,
   secure = false
 ) => {
-  console.log('Inside ftp_utils.js, ', decodedToken);
-  console.log('destination, ', dest);
-
+  // Bool failed will check if err occured
+  let failed = false;
+  // console.log('Inside ftp_utils.js, ', decodedToken);
+  // console.log('destination, ', dest);
   const client = new ftp.Client();
 
   client.trackProgress((info) => {
@@ -128,6 +143,7 @@ export const pull_ftp = async (
       });
     } catch (err) {
       console.log("ftp_connection_error");
+      failed = true;
       try {
         const userData = await db.userdata.findOne({
           where: {
@@ -150,12 +166,14 @@ export const pull_ftp = async (
         );
         // now if the ftp pull failed, then backupStatus will be marked 'fail'
       } catch (error) {
+        failed = true;
         console.log("err here", error);
       }
     }
     console.log(await client.list());
     await client.downloadToDir(dest, "/");
   } catch (err) {
+    failed = true;
     console.log("ftp_error", err);
     try {
       const userData = await db.userdata.findOne({
@@ -180,35 +198,45 @@ export const pull_ftp = async (
       // now if the ftp pull failed, then backupStatus will be marked 'fail'
       return;
     } catch (error) {
+      failed = true;
+
       console.log("err here", error);
     }
   } finally {
-    console.log('>>>>>> FTP download successful for user id: ', decodedToken.sub);
-    try {
-      const userData = await db.userdata.findOne({
-        where: {
-          userid: decodedToken.sub,
-        },
-      });
-      let backupList = JSON.parse(userData.backups);
-      backupList[currentBackupIndex - 1].backupStatus = "active";
-      const updateLog = await db.userdata.update(
-        {
-          backups: JSON.stringify(backupList),
-        },
-        {
-          returning: true,
-          where: {
-            id: decodedToken.sub,
-          },
-          plain: true,
-        }
+    if (failed) {
+      console.log(">>>>>>> FAILED!");
+      await client.close();
+    } else {
+      console.log(
+        ">>>>>> FTP download successful for user id: ",
+        decodedToken.sub
       );
-      // now if the ftp pull failed, then backupStatus will be marked 'fail'
-    } catch (error) {
-      console.log("err here in success ftp for user id: ", decodedToken.sub);
+      try {
+        const userData = await db.userdata.findOne({
+          where: {
+            userid: decodedToken.sub,
+          },
+        });
+        let backupList = JSON.parse(userData.backups);
+        backupList[currentBackupIndex - 1].backupStatus = "active";
+        const updateLog = await db.userdata.update(
+          {
+            backups: JSON.stringify(backupList),
+          },
+          {
+            returning: true,
+            where: {
+              id: decodedToken.sub,
+            },
+            plain: true,
+          }
+        );
+        // now if the ftp pull failed, then backupStatus will be marked 'fail'
+      } catch (error) {
+        console.log("err here in success ftp for user id: ", decodedToken.sub);
+      }
+      await client.close();
     }
-    await client.close();
   }
 };
 
@@ -222,8 +250,9 @@ export const put_ftp = async (
   obj,
   secure = false
 ) => {
+  // Bool failed will check if err occured
+  let failed = false;
   const client = new ftp.Client();
-
   client.trackProgress((info) => {
     //Called every time a file is added
     console.log("File", info.name);
@@ -242,12 +271,13 @@ export const put_ftp = async (
         secure: secure,
       });
     } catch (err) {
-      obj.errors.push("ftp_connection_error");
+      failed = true;
     }
     console.log(await client.list());
     await client.uploadFromDir(dest, "/");
   } catch (err) {
-    obj.errors.push("ftp_error");
+    failed = true;
+
     console.log(err);
   } finally {
     await client.close();
