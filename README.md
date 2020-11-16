@@ -1,5 +1,4 @@
-# [KingKongBackups.com](https://kingkongbackups.com)
-# [View Frontend Here](https://github.com/luke-devel/KingKongFrontend)
+# [KingKongBackups.com](https://kingkongbackups.com) // [View Frontend Here](https://github.com/luke-devel/KingKongFrontend)
 ![King Kong Backups Homepage](https://kingkongbackups.com/img/KingKongBackups.png)
 ## Backend Technology Used:
 * [**AWS Lightsail CentOS VPS**](https://lightsail.aws.amazon.com/) - Backend Linux VPS Hosted in Germany
