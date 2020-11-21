@@ -273,7 +273,9 @@ app.post("/api/addsite", async (req, res) => {
               message: "Opps! Something went wrong",
             });
           }
-        } else {
+        }
+        //! if userdata doesnt exist
+        else {
           try {
             const createLog = await db.userdata.create(
               {
@@ -309,6 +311,64 @@ app.post("/api/addsite", async (req, res) => {
         }
       } else {
         return res.json("Oops! An error has occured.");
+      }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+});
+
+//! TODO REMOVE
+app.post("/api/removesite", async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      if (!req.body) {
+        return res.status(404).json("Opps! Something went wrong.").end();
+      } else {
+        const decodedToken = jwt_decode(req.body.userToken);
+        console.log(decodedToken);
+        try {
+          const userDataInfo = await db.userdata.findOne({
+            where: { userId: decodedToken.sub },
+          });
+          console.log(userDataInfo);
+          if (userDataInfo && userDataInfo.userid === decodedToken.sub) {
+            // Authenticated request
+            //! Try to remove ftp server
+            try {
+              //* Original data
+
+              let serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
+              //* Remove site row
+              serverList.splice(req.body.serverRowID - 1, 1);
+              console.log("new\n", serverList);
+              //* row removed
+              const updateLog = await db.userdata.update(
+                {
+                  ftpservers: JSON.stringify(serverList),
+                },
+                {
+                  returning: true,
+                  where: {
+                    userid: decodedToken.sub,
+                  },
+                  plain: true,
+                }
+              );
+              //* Success
+              return res.status(253).json("Success");
+              //! Err removing ftp server
+            } catch (error) {
+              return res.json("Opps! Something went wrong.");
+            }
+          }
+          res.json({ message: "hi" });
+        } catch (seqFindErr) {
+          console.log(seqFindErr);
+          return res.status(404).json("Opps! Something went wrong.").end();
+        }
       }
       break;
 
@@ -526,7 +586,7 @@ app.post("/api/addbackup", async (req, res) => {
                 plain: true,
               }
             );
-         
+
             if (serverList[req.body.ftpListCount].servertype === "ftp") {
               // ftp
               console.log(
@@ -537,7 +597,9 @@ app.post("/api/addbackup", async (req, res) => {
                 serverList[req.body.ftpListCount].serverport,
                 serverList[req.body.ftpListCount].serverusername,
                 serverList[req.body.ftpListCount].serverpassword,
-                `/home/luke/ftpbackup/ftp/${serverList[req.body.ftpListCount].serveraddress}`,
+                `/home/luke/ftpbackup/ftp/${
+                  serverList[req.body.ftpListCount].serveraddress
+                }`,
                 decodedToken,
                 currentBackupIndex
               );
@@ -551,7 +613,9 @@ app.post("/api/addbackup", async (req, res) => {
                 serverList[req.body.ftpListCount].serverport,
                 serverList[req.body.ftpListCount].serverusername,
                 serverList[req.body.ftpListCount].serverpassword,
-                `/home/luke/ftpbackup/sftp/${serverList[req.body.ftpListCount].serveraddress}`,
+                `/home/luke/ftpbackup/sftp/${
+                  serverList[req.body.ftpListCount].serveraddress
+                }`,
                 decodedToken,
                 currentBackupIndex
               );
