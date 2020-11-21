@@ -273,7 +273,9 @@ app.post("/api/addsite", async (req, res) => {
               message: "Opps! Something went wrong",
             });
           }
-        } else {
+        }
+        //! if userdata doesnt exist
+        else {
           try {
             const createLog = await db.userdata.create(
               {
@@ -328,22 +330,41 @@ app.post("/api/removesite", async (req, res) => {
         const decodedToken = jwt_decode(req.body.userToken);
         console.log(decodedToken);
         try {
-          const userInfo = await db.user.findOne({
-            where: { email: decodedToken.myPersonEmail },
+          const userDataInfo = await db.userdata.findOne({
+            where: { userId: decodedToken.sub },
           });
-          console.log(userInfo);
-          if (userInfo && userInfo.id === decodedToken.sub) {
+          console.log(userDataInfo);
+          if (userDataInfo && userDataInfo.userid === decodedToken.sub) {
             // Authenticated request
-            console.log("Authenticated request", userInfo.dataValues.ftpservers);
-            //* Remove site row
-            // const removeRes = await db.userdata.destroy({
-            //   where: {
-            //     id: req.body.serverRowID,
-            //   },
-            // });
+            //! Try to remove ftp server
+            try {
+              //* Original data
+
+              let serverList = JSON.parse(userDataInfo.dataValues.ftpservers);
+              //* Remove site row
+              serverList.splice(req.body.serverRowID - 1, 1);
+              console.log("new\n", serverList);
+              //* row removed
+              const updateLog = await db.userdata.update(
+                {
+                  ftpservers: JSON.stringify(serverList),
+                },
+                {
+                  returning: true,
+                  where: {
+                    userid: decodedToken.sub,
+                  },
+                  plain: true,
+                }
+              );
+              //* Success
+              return res.status(253).json("Success");
+              //! Err removing ftp server
+            } catch (error) {
+              return res.json("Opps! Something went wrong.");
+            }
           }
-          console.log(removeRes);
-          removeRes && res.json({ message: removeRes });
+          res.json({ message: "hi" });
         } catch (seqFindErr) {
           console.log(seqFindErr);
           return res.status(404).json("Opps! Something went wrong.").end();
