@@ -318,6 +318,45 @@ app.post("/api/addsite", async (req, res) => {
   }
 });
 
+//! TODO REMOVE
+app.post("/api/removesite", async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      if (!req.body) {
+        return res.status(404).json("Opps! Something went wrong.").end();
+      } else {
+        const decodedToken = jwt_decode(req.body.userToken);
+        console.log(decodedToken);
+        try {
+          const userInfo = await db.user.findOne({
+            where: { email: decodedToken.myPersonEmail },
+          });
+          console.log(userInfo);
+          if (userInfo && userInfo.id === decodedToken.sub) {
+            // Authenticated request
+            console.log("Authenticated request", userInfo.dataValues.ftpservers);
+            //* Remove site row
+            // const removeRes = await db.userdata.destroy({
+            //   where: {
+            //     id: req.body.serverRowID,
+            //   },
+            // });
+          }
+          console.log(removeRes);
+          removeRes && res.json({ message: removeRes });
+        } catch (seqFindErr) {
+          console.log(seqFindErr);
+          return res.status(404).json("Opps! Something went wrong.").end();
+        }
+      }
+      break;
+
+    default:
+      res.end("you need to post");
+      break;
+  }
+});
+
 app.post("/api/checkauth", async (req, res) => {
   switch (req.method) {
     case "POST":
@@ -526,7 +565,7 @@ app.post("/api/addbackup", async (req, res) => {
                 plain: true,
               }
             );
-         
+
             if (serverList[req.body.ftpListCount].servertype === "ftp") {
               // ftp
               console.log(
@@ -537,7 +576,9 @@ app.post("/api/addbackup", async (req, res) => {
                 serverList[req.body.ftpListCount].serverport,
                 serverList[req.body.ftpListCount].serverusername,
                 serverList[req.body.ftpListCount].serverpassword,
-                `/home/luke/ftpbackup/ftp/${serverList[req.body.ftpListCount].serveraddress}`,
+                `/home/luke/ftpbackup/ftp/${
+                  serverList[req.body.ftpListCount].serveraddress
+                }`,
                 decodedToken,
                 currentBackupIndex
               );
@@ -551,7 +592,9 @@ app.post("/api/addbackup", async (req, res) => {
                 serverList[req.body.ftpListCount].serverport,
                 serverList[req.body.ftpListCount].serverusername,
                 serverList[req.body.ftpListCount].serverpassword,
-                `/home/luke/ftpbackup/sftp/${serverList[req.body.ftpListCount].serveraddress}`,
+                `/home/luke/ftpbackup/sftp/${
+                  serverList[req.body.ftpListCount].serveraddress
+                }`,
                 decodedToken,
                 currentBackupIndex
               );

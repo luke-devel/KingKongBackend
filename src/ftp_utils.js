@@ -78,7 +78,7 @@ export const pull_sftp = async (
       // await client.end();
     } else {
       console.log(
-        ">>>>>> FTP download successful for user id: ",
+        ">>>>>> SFTP download successful for user id: ",
         decodedToken.sub
       );
       try {
